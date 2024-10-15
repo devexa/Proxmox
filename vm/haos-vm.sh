@@ -157,6 +157,7 @@ function default_settings() {
   VMID="$NEXTID"
   FORMAT=",efitype=4m"
   MACHINE=""
+  DISK_SIZE=32
   DISK_CACHE="cache=writethrough,"
   HN="haos$stable"
   CPU_TYPE=" -cpu host"
@@ -227,6 +228,23 @@ function advanced_settings() {
   else
     exit-script
   fi
+
+  while true; do
+    if DISK_SIZE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --inputbox "Allocate disk size in GiB (min 32)" 8 58 32 --title "DISK" --cancel-button Exit-Script 3>&1 1>&2 2>&3); then
+      if [ -z $DISK_SIZE ]; then
+        DISK_SIZE="32"
+        echo -e "${DGN}Allocated disk size: ${BGN}$DISK_SIZE${CL}"
+        break
+      else
+        if [[ $DISK_SIZE =~ ^[0-9]+$ && $DISK_SIZE -ge 32 ]]; then
+          echo -e "${DGN}Allocated disk size: ${BGN}$DISK_SIZE${CL}"
+          break   
+        fi
+      fi      
+    else
+      exit-script
+    fi
+  done
 
   if DISK_CACHE1=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "DISK CACHE" --radiolist "Choose" --cancel-button Exit-Script 10 58 2 \
     "0" "None" OFF \
@@ -458,6 +476,14 @@ qm set $VMID \
   <a href='https://ko-fi.com/D1D7EP4GF'><img src='https://img.shields.io/badge/&#x2615;-Buy me a coffee-blue' /></a>
   </div>" >/dev/null
 msg_ok "Created HAOS VM ${CL}${BL}(${HN})"
+
+if [[ $DISK_SIZE != 32 ]]; then
+  msg_info "Resizing vDisk to ${DISK_SIZE}G"
+  SIZE2ADD=$((DISK_SIZE - 32))
+  qm resize $VMID scsi0 +${SIZE2ADD}G 1>&/dev/null
+  msg_ok "vDisk resized to ${DISK_SIZE}G"
+fi
+
 if [ "$START_VM" == "yes" ]; then
   msg_info "Starting Home Assistant OS VM"
   qm start $VMID
